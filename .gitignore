@@ -205,3 +205,17 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# FinAlly
+db/*.db
+db/*.db-*
+backend/static/
+frontend/node_modules/
+frontend/.next/
+frontend/.next-dev/
+frontend/out/
+test/node_modules/
+test/test-results/
+test/playwright-report/
+test/*.log
+.DS_Store

@@ -1,0 +1,50 @@
+# E2E test stack: the production image (LLM_MOCK=true) + a Playwright runner.
+# The app service is named finally-app, not app: Chromium treats a bare host "app"
+# as the HSTS-preloaded .app TLD and forces HTTPS.
+# Run from the repo root:
+#   docker compose -f test/docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from playwright
+#   docker compose -f test/docker-compose.test.yml down -v
+name: finally-test
+
+services:
+  finally-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: finally:test
+    environment:
+      LLM_MOCK: "true"
+      ANTHROPIC_API_KEY: ""
+      MASSIVE_API_KEY: ""
+      DB_PATH: /app/db/finally.db
+    # Fresh, throwaway database for every run (no named volume).
+    tmpfs:
+      - /app/db
+    ports:
+      - "8001:8000"   # optional: inspect the test app from the host
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=2).status == 200 else 1)"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  playwright:
+    # Keep this tag in lockstep with @playwright/test in test/package.json.
+    image: mcr.microsoft.com/playwright:v1.65.0-noble
+    depends_on:
+      finally-app:
+        condition: service_healthy
+    working_dir: /work
+    environment:
+      BASE_URL: http://finally-app:8000
+      CI: "true"
+    volumes:
+      - ./:/work
+      - /work/node_modules   # container-local node_modules, never the host's
+    ipc: host
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npx playwright test"]
